@@ -2,8 +2,10 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import Cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import dbConnect from "../../lib/db";
+import User from "../../models/User";
 
-// Initialize CORS middleware
+// Initialize CORS
 const cors = Cors({
   methods: ["POST", "OPTIONS"],
   origin: "https://smartsign-frontend.vercel.app",
@@ -19,9 +21,6 @@ function runMiddleware(req: VercelRequest, res: VercelResponse, fn: Function) {
   });
 }
 
-// In-memory "database" example (replace with your DB logic)
-const users: any[] = [];
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   await runMiddleware(req, res, cors);
 
@@ -30,29 +29,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    await dbConnect();
+
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Please provide all fields" });
     }
 
-    const existingUser = users.find(u => u.email === email);
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = {
-      name,
-      email,
-      password: hashedPassword,
-      token: jwt.sign({ email }, "your-secret-key", { expiresIn: "1h" }),
-    };
+    const user = await User.create({ name, email, password: hashedPassword });
 
-    users.push(newUser);
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, { expiresIn: "7d" });
 
-    return res.status(201).json({ message: "User created", user: newUser, token: newUser.token });
+    return res.status(201).json({
+      message: "User created successfully",
+      user: { name: user.name, email: user.email },
+      token,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error" });
