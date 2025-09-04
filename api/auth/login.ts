@@ -2,6 +2,9 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import Cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import dbConnect from "../../../lib/db";
+import User from "../../../models/User";
+
 
 // Initialize CORS
 const cors = Cors({
@@ -19,9 +22,6 @@ function runMiddleware(req: VercelRequest, res: VercelResponse, fn: Function) {
   });
 }
 
-// In-memory "database" example (replace with your DB)
-const users: any[] = [];
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   await runMiddleware(req, res, cors);
 
@@ -30,9 +30,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { email, password } = req.body;
+    await dbConnect(); // connect to DB
 
-    const user = users.find(u => u.email === email);
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -42,7 +43,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    return res.status(200).json({ message: "Login successful", user, token: user.token });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+
+    return res.status(200).json({ 
+      message: "Login successful", 
+      user: { name: user.name, email: user.email }, 
+      token 
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error" });
