@@ -2,8 +2,8 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import Cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import dbConnect from "../../../lib/db";
-import User from "../../../models/User";
+import dbConnect from "@/lib/db";
+import User from "@/models/User";
 
 
 // Initialize CORS
